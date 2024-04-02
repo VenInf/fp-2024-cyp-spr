@@ -6,38 +6,40 @@ module Parser where
 
 import Data.Char ( isAlpha, isAlphaNum, isDigit, digitToInt )
 import Control.Applicative ( Alternative((<|>), empty, many) )
+import Expr (Expr(..), BinOpeation(..), UnOperation(..))
+import Data.List (isPrefixOf, stripPrefix)
 
-keywords :: [String]
-keywords = ["if", "then", "else"]
+-- keywords :: [String]
+-- keywords = ["if", "then", "else"]
 
--- This is a straightforward implementation of an indetifier parser. 
-parseIdent :: String -> Either String String 
-parseIdent str@(h:t) 
-    | isValidFirst h && all isValid t = 
-        if str `notElem` keywords 
-        then Right str 
-        else Left "Keyword cannot be an identifier"
-    | otherwise = Left "Lexical error: inadmissible character"
-  where 
-    isValidFirst x = x == '_' || x == '\'' || isAlpha x 
-    isValid x = isAlphaNum x || isValidFirst x 
-parseIdent [] = Left "Empty string is not an identifier"
+-- -- This is a straightforward implementation of an indetifier parser. 
+-- parseIdent :: String -> Either String String 
+-- parseIdent str@(h:t) 
+--     | isValidFirst h && all isValid t = 
+--         if str `notElem` keywords 
+--         then Right str 
+--         else Left "Keyword cannot be an identifier"
+--     | otherwise = Left "Lexical error: inadmissible character"
+--   where 
+--     isValidFirst x = x == '_' || x == '\'' || isAlpha x 
+--     isValid x = isAlphaNum x || isValidFirst x 
+-- parseIdent [] = Left "Empty string is not an identifier"
 
--- This is a straightforward implementation of a number parser. 
-parseInt :: String -> Either String Int 
-parseInt (h:t) = 
-    if h == '-'
-    then ((-1) *) <$> parseNumber t 
-    else parseNumber (h:t)
-  where 
-    parseNumber [] = Left "Empty string is not a number"
-    parseNumber str = 
-        if all isDigit str
-        then Right $ toDigit str 
-        else Left "Lexical error: inadmissible character"
-      where 
-        toDigit = foldl1 (\a x -> a * 10 + x) . map digitToInt
-parseInt [] = Left "Empty string is not a number"
+-- -- This is a straightforward implementation of a number parser. 
+-- parseInt :: String -> Either String Int 
+-- parseInt (h:t) = 
+--     if h == '-'
+--     then ((-1) *) <$> parseNumber t 
+--     else parseNumber (h:t)
+--   where 
+--     parseNumber [] = Left "Empty string is not a number"
+--     parseNumber str = 
+--         if all isDigit str
+--         then Right $ toDigit str 
+--         else Left "Lexical error: inadmissible character"
+--       where 
+--         toDigit = foldl1 (\a x -> a * 10 + x) . map digitToInt
+-- parseInt [] = Left "Empty string is not a number"
 
 -- It's not clear how to compose the parsers above, so people usually use a different abstraction for a parser. 
 -- A parser consumes the prefix of an input String while it's a valid string of the language being parsed. 
@@ -162,4 +164,67 @@ identSequence = (do
   )
   <|> 
     return [] 
+
+statisfyPrefix :: String -> Parser String 
+statisfyPrefix pref = Parser $ \str ->
+  case pref `stripPrefix` str of  
+    Just postfix -> Just (postfix, str)
+    Nothing -> Nothing
+
+parseUnOp :: Parser (Expr Int)
+parseUnOp = do
+  op <- statisfyPrefix "sqrt" -- couldn't make it for a list of keywords
+  satisfy (== ' ')
+  fmap (UnOp Sqrt) parseExpression
+  
+binOpList :: [Char]
+binOpList = ['+', '-', '*', '/', '^']
+
+parseBinOp :: Parser (Expr Int)
+parseBinOp = do
+  op <- satisfy binop
+  satisfy (== ' ')
+  a <- parseExpression
+  satisfy (== ' ')
+  b <- parseExpression
+  case op of
+    '+' -> return $ Bin Plus a b
+    '-' -> return $ Bin Minus a b
+    '*' -> return $ Bin Mult a b
+    '/' -> return $ Bin Div a b
+    '^' -> return $ Bin Pow a b
+  where binop = (`elem` binOpList)
+
+
+parseNum :: Parser Int
+parseNum = do
+    a <- satisfy isDigit
+    b <- go
+    return $ read (a:b) -- cheesy, but what to do
+  where
+    go = (do
+      x <- satisfy isDigit
+      y <- go
+      return (x:y)) <|>
+      return []
+
+parseInt :: Parser Int
+parseInt = (do
+    h <- satisfy (== '-')
+    t <- parseNum 
+    return ((-1) * t))
+    <|> parseNum
+
+
+parseConst :: Parser (Expr Int)
+parseConst = do
+  Const <$> parseInt
+
+parseVar :: Parser (Expr Int)
+parseVar = do
+  Var <$> parseIdent'
+
+parseExpression :: Parser (Expr Int)
+parseExpression = do
+    parseBinOp <|> parseUnOp <|> parseVar <|> parseConst
 
