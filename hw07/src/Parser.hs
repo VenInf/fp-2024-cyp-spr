@@ -208,15 +208,8 @@ parseBinOp = do
 
 parseNum :: Parser Int
 parseNum = do
-    a <- satisfy isDigit
-    b <- go
-    return $ read (a:b) -- cheesy, but what to do
-  where
-    go = (do
-      x <- satisfy isDigit
-      y <- go
-      return (x:y)) <|>
-      return []
+    n <- many (satisfy isDigit)
+    return $ read n -- cheesy, but what to do
 
 parseInt :: Parser Int
 parseInt = (do
