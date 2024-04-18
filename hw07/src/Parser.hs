@@ -2,12 +2,14 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use lambda-case" #-}
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
+{-# HLINT ignore "Use <$>" #-}
 module Parser where 
 
 import Data.Char ( isAlpha, isAlphaNum, isDigit, digitToInt )
 import Control.Applicative ( Alternative((<|>), empty, many) )
 import Expr (Expr(..), BinOpeation(..), UnOperation(..))
-import Data.List (isPrefixOf, stripPrefix)
+import Data.List (isPrefixOf, stripPrefix, find)
+import Data.Maybe (fromJust)
 
 -- keywords :: [String]
 -- keywords = ["if", "then", "else"]
@@ -171,30 +173,38 @@ statisfyPrefix pref = Parser $ \str ->
     Just postfix -> Just (postfix, str)
     Nothing -> Nothing
 
+satisfyForUnOp :: Parser UnOperation
+satisfyForUnOp = Parser $ \str -> 
+  case find (\x -> fst x `isPrefixOf` str) unOpLookupList of
+       Just (prefix, op) -> Just (fromJust $ prefix `stripPrefix` str, op)
+       Nothing -> Nothing
+  where unOpLookupList = [("sqrt", Sqrt)]
+
 parseUnOp :: Parser (Expr Int)
 parseUnOp = do
-  op <- statisfyPrefix "sqrt" -- couldn't make it for a list of keywords
+  op <- satisfyForUnOp
   satisfy (== ' ')
-  fmap (UnOp Sqrt) parseExpression
-  
-binOpList :: [Char]
-binOpList = ['+', '-', '*', '/', '^']
+  a <- parseExpression
+  return (UnOp op a)
+
+
+satisfyForBinOp :: Parser BinOpeation
+satisfyForBinOp = Parser $ \str ->
+  case str of
+    (h:t) -> case find ((==) h . fst) binOpLookupList of
+                  Just (_, op) -> Just (t, op)
+                  Nothing -> Nothing
+    _ -> Nothing
+    where binOpLookupList = [('+', Plus), ('-', Minus), ('*', Mult), ('/', Div), ('^', Pow)]
 
 parseBinOp :: Parser (Expr Int)
 parseBinOp = do
-  op <- satisfy binop
+  op <- satisfyForBinOp
   satisfy (== ' ')
   a <- parseExpression
   satisfy (== ' ')
   b <- parseExpression
-  case op of
-    '+' -> return $ Bin Plus a b
-    '-' -> return $ Bin Minus a b
-    '*' -> return $ Bin Mult a b
-    '/' -> return $ Bin Div a b
-    '^' -> return $ Bin Pow a b
-  where binop = (`elem` binOpList)
-
+  return (Bin op a b)
 
 parseNum :: Parser Int
 parseNum = do
