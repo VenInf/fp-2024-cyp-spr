@@ -2,6 +2,7 @@
 
 ## Hard deadline: 24 hours before the exam
 
+
 A project amounts to 40% of your final grade.
 A project is to be done by a single student, no teamwork allowed. 
 The maximum number of points for a project is 100, with concrete subtasks having different values. 
